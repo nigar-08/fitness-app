@@ -1,0 +1,134 @@
+# AI-Powered Fitness Microservices
+
+A full-stack-ready Spring Boot microservices backend for tracking workouts and generating AI fitness recommendations with Google Gemini.
+
+## Tech Stack
+
+- Java 21, Spring Boot, Spring Cloud
+- Spring Cloud Gateway, Eureka Discovery Server, Spring Cloud Config Server
+- Keycloak JWT authentication
+- MySQL for users
+- MongoDB for activities and AI recommendations
+- RabbitMQ for activity events
+- Google Gemini API for recommendation generation
+- React + Vite frontend
+- Maven and Docker Compose
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Client[Frontend / API Client] --> Gateway[API Gateway :8080]
+    Gateway --> Keycloak[Keycloak :8181]
+    Gateway --> UserService[User Service :8091]
+    Gateway --> ActivityService[Activity Service :8092]
+    Gateway --> AiService[AI Service :8083]
+    UserService --> MySQL[(MySQL)]
+    ActivityService --> MongoActivity[(MongoDB)]
+    ActivityService --> RabbitMQ[RabbitMQ]
+    RabbitMQ --> AiService
+    AiService --> Gemini[Gemini API]
+    AiService --> MongoAi[(MongoDB)]
+    Gateway --> Eureka[Eureka :8761]
+    UserService --> Eureka
+    ActivityService --> Eureka
+    AiService --> Eureka
+    ConfigServer[Config Server :8888] --> UserService
+    ConfigServer --> ActivityService
+    ConfigServer --> AiService
+    ConfigServer --> Gateway
+```
+
+## Services
+
+| Service | Port | Purpose |
+| --- | ---: | --- |
+| Eureka | 8761 | Service discovery |
+| Config Server | 8888 | Centralized native config |
+| Gateway | 8080 | JWT-secured API entry point |
+| User Service | 8091 | User registration, profile, validation |
+| Activity Service | 8092 | Activity tracking and event publishing |
+| AI Service | 8083 | Gemini recommendation generation |
+| Frontend | 5173 | React dashboard and activity client |
+
+MySQL is exposed on host port `3307` to avoid conflicts with a local MySQL server that may already be using `3306`.
+
+## Quick Start
+
+1. Copy environment values:
+
+```bash
+cp .env.example .env
+```
+
+2. Update `GEMINI_API_KEY` in `.env`.
+
+3. Start local infrastructure:
+
+```bash
+docker compose --env-file .env up -d
+```
+
+4. Create a Keycloak realm named `fitness-oauth2`, a public client named `fitness-frontend`, and a demo user such as `testuser`.
+
+Keycloak client settings for the React frontend:
+
+- Client authentication: `Off`
+- Standard flow: `On`
+- Valid redirect URIs: `http://localhost:5173/*` and `http://localhost:5174/*`
+- Valid post logout redirect URIs: `http://localhost:5173/*` and `http://localhost:5174/*`
+- Web origins: `http://localhost:5173` and `http://localhost:5174`
+
+The default JWK URL is:
+
+```text
+http://localhost:8181/realms/fitness-oauth2/protocol/openid-connect/certs
+```
+
+5. Start services in this order:
+
+```bash
+cd eureka && ./mvnw spring-boot:run
+cd configserver && ./mvnw spring-boot:run
+cd userservice && ./mvnw spring-boot:run
+cd activityservice && ./mvnw spring-boot:run
+cd aiservice && ./mvnw spring-boot:run
+cd gateway && ./mvnw spring-boot:run
+```
+
+6. Start the frontend:
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+Then open `http://localhost:5173`. If Vite says that port is busy and moves to `5174`, use `http://localhost:5174`.
+
+## API Routes Through Gateway
+
+The frontend uses the normal Keycloak redirect login flow. Users click Login, sign in on the Keycloak page, and return to React with a token. The app refreshes tokens automatically while the refresh session is valid.
+
+- `GET /api/users/{userId}`
+- `POST /api/users/register`
+- `GET /api/users/{userId}/validate`
+- `POST /api/activities`
+- `GET /api/activities`
+- `GET /api/activities/{activityId}`
+- `GET /api/recommendations/user/{userId}`
+- `GET /api/recommendations/activity/{activityId}`
+
+## Demo Flow
+
+1. Authenticate with Keycloak.
+2. Gateway syncs the Keycloak user into User Service.
+3. Create an activity with `POST /api/activities`.
+4. Activity Service saves it and publishes a RabbitMQ event.
+5. AI Service consumes the event, calls Gemini, and saves a recommendation.
+6. Fetch the recommendation by user or activity.
+
+## Notes
+
+- Secrets are read from environment variables through Config Server. Do not commit `.env`.
+- RabbitMQ management UI runs at `http://localhost:15672` with `guest/guest`.
+- Eureka dashboard runs at `http://localhost:8761`.
+- Keycloak admin console runs at `http://localhost:8181` with `admin/admin` for local development.

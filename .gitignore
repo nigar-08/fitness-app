@@ -1,0 +1,12 @@
+.DS_Store
+.idea/
+.vscode/
+target/
+**/target/
+*.iml
+.env
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+npm-debug.log*

@@ -1,0 +1,43 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: fitness-mysql
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-fitness}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-root}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  mongodb:
+    image: mongo:7
+    container_name: fitness-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: fitness-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: fitness-keycloak
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8181:8080"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+
+volumes:
+  mysql-data:
+  mongo-data:
+  keycloak-data:
