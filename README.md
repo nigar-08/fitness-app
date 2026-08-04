@@ -7,9 +7,12 @@ A full-stack-ready Spring Boot microservices backend for tracking workouts and g
 - Java 21, Spring Boot, Spring Cloud
 - Spring Cloud Gateway, Eureka Discovery Server, Spring Cloud Config Server
 - Keycloak JWT authentication
+- Keycloak-managed identity; application services do not store user passwords
 - MySQL for users
 - MongoDB for activities and AI recommendations
 - RabbitMQ for activity events
+- RabbitMQ retry and dead-letter handling for failed AI events
+- Durable activity outbox state for eventual RabbitMQ publication
 - Google Gemini API for recommendation generation
 - React + Vite frontend
 - Maven and Docker Compose
@@ -122,9 +125,29 @@ The frontend uses the normal Keycloak redirect login flow. Users click Login, si
 1. Authenticate with Keycloak.
 2. Gateway syncs the Keycloak user into User Service.
 3. Create an activity with `POST /api/activities`.
-4. Activity Service saves it and publishes a RabbitMQ event.
+4. Activity Service saves it with pending outbox state; a scheduled publisher sends the RabbitMQ event and records successful publication.
 5. AI Service consumes the event, calls Gemini, and saves a recommendation.
 6. Fetch the recommendation by user or activity.
+
+Duplicate RabbitMQ deliveries are handled idempotently: AI Service checks for an
+existing recommendation by activity ID before calling Gemini. Failed listener
+executions are retried with exponential backoff and routed to
+`activity.queue.dead` after the configured attempts are exhausted.
+
+## Reliability and Validation
+
+- Activity requests use Bean Validation for required fields and positive numeric values.
+- Activity Service returns structured API errors for invalid users, missing activities, and validation failures.
+- RabbitMQ consumers retry transient failures and route exhausted messages to a dead-letter queue.
+- Activity records retain pending publication state, so a temporary RabbitMQ outage does not silently lose the AI event.
+- Recommendation generation is idempotent by activity ID, preventing duplicate Gemini calls and records.
+- MongoDB indexes support activity lookup by user and enforce one recommendation per activity.
+- Gemini calls use a bounded timeout, validate response structure, and fall back safely when the provider fails or returns malformed content.
+- Unit tests cover activity validation/publishing and duplicate event handling.
+
+## Continuous Integration
+
+GitHub Actions runs the complete Maven test suite and a clean frontend production build for every pull request and every push to `main`.
 
 ## Notes
 

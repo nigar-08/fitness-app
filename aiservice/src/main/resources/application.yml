@@ -7,6 +7,7 @@ spring:
     mongodb:
       uri: ${AI_MONGODB_URI:${MONGODB_URI:mongodb://localhost:27017/fitnessrecommendation}}
       database: ${AI_MONGODB_DATABASE:fitnessrecommendation}
+      auto-index-creation: true
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -33,3 +34,4 @@ gemini:
   api:
     url: ${GEMINI_API_URL:https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=}
     key: ${GEMINI_API_KEY:}
+    timeout-seconds: ${GEMINI_TIMEOUT_SECONDS:10}

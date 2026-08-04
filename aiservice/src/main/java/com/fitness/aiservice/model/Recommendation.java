@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.index.Indexed;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,7 +22,9 @@ import java.util.List;
 public class Recommendation {
     @Id
     private String id;
+    @Indexed(unique = true)
     private String activityId;
+    @Indexed
     private String userId;
     private String activityType;
     private String recommendation;

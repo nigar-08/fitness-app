@@ -23,12 +23,32 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue activityQueue() {
-        return new Queue(queue, true);
+        return QueueBuilder.durable(queue)
+                .deadLetterExchange(exchange + ".dlx")
+                .deadLetterRoutingKey(routingKey + ".dead")
+                .build();
     }
 
     @Bean
     public DirectExchange activityExchange() {
         return new DirectExchange(exchange);
+    }
+
+    @Bean
+    public DirectExchange deadLetterExchange() {
+        return new DirectExchange(exchange + ".dlx");
+    }
+
+    @Bean
+    public Queue deadLetterQueue() {
+        return QueueBuilder.durable(queue + ".dead").build();
+    }
+
+    @Bean
+    public Binding deadLetterBinding(Queue deadLetterQueue, DirectExchange deadLetterExchange) {
+        return BindingBuilder.bind(deadLetterQueue)
+                .to(deadLetterExchange)
+                .with(routingKey + ".dead");
     }
 
     @Bean

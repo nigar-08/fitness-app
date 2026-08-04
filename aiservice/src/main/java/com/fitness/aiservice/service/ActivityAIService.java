@@ -40,12 +40,18 @@ public class ActivityAIService {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(aiResponse);
 
-            JsonNode textNode = rootNode.path("candidates")
-                    .get(0)
-                    .path("content")
-                    .path("parts")
-                    .get(0)
-                    .path("text");
+            JsonNode candidates = rootNode.path("candidates");
+            if (!candidates.isArray() || candidates.isEmpty()) {
+                throw new IllegalArgumentException("Gemini response has no candidates");
+            }
+            JsonNode parts = candidates.get(0).path("content").path("parts");
+            if (!parts.isArray() || parts.isEmpty()) {
+                throw new IllegalArgumentException("Gemini response has no content parts");
+            }
+            JsonNode textNode = parts.get(0).path("text");
+            if (!textNode.isTextual() || textNode.asText().isBlank()) {
+                throw new IllegalArgumentException("Gemini response text is empty");
+            }
 
             String jsonContent = textNode.asText()
                     .replaceAll("```json\\n","")
@@ -79,7 +85,7 @@ public class ActivityAIService {
                     .build();
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Unable to parse Gemini response for activity {}; using fallback", activity.getId(), e);
             return createDefaultRecommendation(activity);
         }
     }
