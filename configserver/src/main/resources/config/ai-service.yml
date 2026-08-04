@@ -8,11 +8,22 @@ spring:
     mongodb:
       uri: ${AI_MONGODB_URI:${MONGODB_URI:mongodb://localhost:27017/fitnessrecommendation}}
       database: ${AI_MONGODB_DATABASE:fitnessrecommendation}
+      auto-index-creation: true
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1s
+          multiplier: 2
+          max-attempts: 3
+          max-interval: 5s
 
 
 eureka:
@@ -34,3 +45,4 @@ gemini:
   api:
     url: ${GEMINI_API_URL}
     key: ${GEMINI_API_KEY}
+    timeout-seconds: ${GEMINI_TIMEOUT_SECONDS:10}

@@ -21,8 +21,12 @@ public class ActivityMessageListener {
     @RabbitListener(queues = "activity.queue")
     public void processActivity(Activity activity) {
         log.info("Received activity for processing: {}", activity.getId());
-//        log.info("Generated Recommendation: {}", aiService.generateRecommendation(activity));
+        if (recommendationRepository.existsByActivityId(activity.getId())) {
+            log.info("Recommendation already exists for activity {}; skipping duplicate event", activity.getId());
+            return;
+        }
         Recommendation recommendation = aiService.generateRecommendation(activity);
         recommendationRepository.save(recommendation);
+        log.info("Stored recommendation for activity {}", activity.getId());
     }
 }

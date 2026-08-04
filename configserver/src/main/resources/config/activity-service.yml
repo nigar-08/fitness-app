@@ -5,6 +5,7 @@ spring:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27017/fitness}
       database: ${ACTIVITY_MONGODB_DATABASE:fitness}
+      auto-index-creation: true
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -26,3 +27,8 @@ rabbitmq:
     name: activity.queue
   routing:
     key: activity.tracking
+
+outbox:
+  publisher:
+    enabled: ${OUTBOX_PUBLISHER_ENABLED:true}
+    delay-ms: ${OUTBOX_PUBLISHER_DELAY_MS:1000}
