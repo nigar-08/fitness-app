@@ -4,7 +4,7 @@ import { Activity, Brain, LayoutDashboard, LogIn, RefreshCcw, Dumbbell } from "l
 import "./styles.css";
 
 const APP_CONFIG = {
-  gatewayUrl: import.meta.env.VITE_GATEWAY_URL || "http://localhost:8080",
+  gatewayUrl: envValue(import.meta.env.VITE_GATEWAY_URL, import.meta.env.PROD ? window.location.origin : "http://localhost:8080"),
   keycloakUrl: import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8181",
   realm: import.meta.env.VITE_KEYCLOAK_REALM || "fitness-oauth2",
   clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "fitness-frontend",
@@ -893,6 +893,10 @@ function activityDetails(activity) {
     metrics.distance ? `${metrics.distance} km` : null,
     metrics.averageHeartRate ? `${metrics.averageHeartRate} bpm` : null,
   ].filter(Boolean).join(" · ");
+}
+
+function envValue(value, fallback) {
+  return value === undefined ? fallback : value;
 }
 
 const viewTitles = {

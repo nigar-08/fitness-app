@@ -1,0 +1,11 @@
+.git
+.idea
+.vscode
+.DS_Store
+.env
+.env.prod
+**/target
+**/node_modules
+**/dist
+*.iml
+npm-debug.log*

@@ -113,6 +113,59 @@ cd frontend && npm install && npm run dev
 
 Then open `http://localhost:5173`. If Vite says that port is busy and moves to `5174`, use `http://localhost:5174`.
 
+## Full Docker Deployment
+
+For a real live deployment, use the production compose file on a server or VM
+that has Docker installed.
+
+1. Copy the production env file:
+
+```bash
+cp .env.prod.example .env.prod
+```
+
+2. Edit `.env.prod`:
+
+```text
+PUBLIC_APP_URL=http://your-server-ip-or-domain
+PUBLIC_KEYCLOAK_URL=http://your-server-ip-or-domain:8181
+APP_CORS_ALLOWED_ORIGINS=http://your-server-ip-or-domain
+MYSQL_PASSWORD=your-strong-password
+KEYCLOAK_ADMIN_PASSWORD=your-strong-password
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+3. Start the full stack:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+4. Open the app:
+
+```text
+http://your-server-ip-or-domain
+```
+
+The production compose stack runs:
+
+- Frontend on port `80`
+- Keycloak on port `8181`
+- Gateway behind the frontend nginx proxy at `/api`
+- Eureka, Config Server, User Service, Activity Service, and AI Service inside the Docker network
+- MySQL, MongoDB, RabbitMQ, and Keycloak persistent volumes
+
+The Keycloak realm import creates:
+
+```text
+Realm: fitness-oauth2
+Client: fitness-frontend
+Demo user: testuser / password123
+```
+
+Keycloak imports the realm only when its data volume is new. If you need to
+re-import from scratch, stop the stack and remove the `keycloak-data` volume.
+
 ## API Routes Through Gateway
 
 The frontend uses the normal Keycloak redirect login flow. Users click Login, sign in on the Keycloak page, and return to React with a token. The app refreshes tokens automatically while the refresh session is valid.

@@ -1,0 +1,165 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-fitness}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    ports:
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: xforwarded
+    ports:
+      - "8181:8080"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+
+  eureka:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.spring-service
+      args:
+        SERVICE_DIR: eureka
+    restart: unless-stopped
+
+  configserver:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.spring-service
+      args:
+        SERVICE_DIR: configserver
+    restart: unless-stopped
+    depends_on:
+      - eureka
+
+  userservice:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.spring-service
+      args:
+        SERVICE_DIR: userservice
+    restart: unless-stopped
+    depends_on:
+      - mysql
+      - eureka
+      - configserver
+    environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
+      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
+      MYSQL_URL: ${MYSQL_URL}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+  activityservice:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.spring-service
+      args:
+        SERVICE_DIR: activityservice
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+      - rabbitmq
+      - eureka
+      - configserver
+      - userservice
+    environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
+      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
+      MONGODB_URI: ${MONGODB_URI}
+      ACTIVITY_MONGODB_DATABASE: ${ACTIVITY_MONGODB_DATABASE}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+
+  aiservice:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.spring-service
+      args:
+        SERVICE_DIR: aiservice
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+      - rabbitmq
+      - eureka
+      - configserver
+    environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
+      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
+      AI_MONGODB_URI: ${AI_MONGODB_URI}
+      AI_MONGODB_DATABASE: ${AI_MONGODB_DATABASE}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      GEMINI_API_URL: ${GEMINI_API_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS}
+
+  gateway:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.spring-service
+      args:
+        SERVICE_DIR: gateway
+    restart: unless-stopped
+    depends_on:
+      - keycloak
+      - eureka
+      - configserver
+      - userservice
+      - activityservice
+      - aiservice
+    environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
+      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS}
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        VITE_GATEWAY_URL: ""
+        VITE_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
+        VITE_KEYCLOAK_REALM: fitness-oauth2
+        VITE_KEYCLOAK_CLIENT_ID: fitness-frontend
+        VITE_DEMO_MODE: "false"
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    ports:
+      - "80:80"
+
+volumes:
+  mysql-data:
+  mongo-data:
+  rabbitmq-data:
+  keycloak-data:
