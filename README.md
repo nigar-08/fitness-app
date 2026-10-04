@@ -2,6 +2,12 @@
 
 A full-stack-ready Spring Boot microservices backend for tracking workouts and generating AI fitness recommendations with Google Gemini.
 
+Live frontend demo: `https://nigar-08.github.io/fitness-app/`
+
+The live GitHub Pages build runs in demo mode with sample data. The full
+Keycloak, gateway, and microservices flow is designed for local development or a
+separate backend deployment.
+
 ## Tech Stack
 
 - Java 21, Spring Boot, Spring Cloud

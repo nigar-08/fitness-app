@@ -10,6 +10,17 @@ const APP_CONFIG = {
   clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "fitness-frontend",
 };
 
+const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || window.location.hostname.endsWith("github.io");
+
+const DEMO_PROFILE = {
+  accessToken: "demo-session",
+  refreshToken: "",
+  tokenExpiresAt: Date.now() + 86400000,
+  userId: "demo-user",
+  username: "demo-user",
+  displayName: "Demo User",
+};
+
 const ACTIVITY_TYPES = [
   "RUNNING",
   "WALKING",
@@ -25,19 +36,19 @@ const ACTIVITY_TYPES = [
 
 const initialSettings = {
   ...APP_CONFIG,
-  accessToken: localStorage.getItem("fitmind.accessToken") || "",
-  refreshToken: localStorage.getItem("fitmind.refreshToken") || "",
-  tokenExpiresAt: Number(localStorage.getItem("fitmind.tokenExpiresAt") || 0),
-  userId: localStorage.getItem("fitmind.userId") || "",
-  username: localStorage.getItem("fitmind.username") || "",
-  displayName: localStorage.getItem("fitmind.displayName") || "",
+  accessToken: IS_DEMO_MODE ? DEMO_PROFILE.accessToken : localStorage.getItem("fitmind.accessToken") || "",
+  refreshToken: IS_DEMO_MODE ? DEMO_PROFILE.refreshToken : localStorage.getItem("fitmind.refreshToken") || "",
+  tokenExpiresAt: IS_DEMO_MODE ? DEMO_PROFILE.tokenExpiresAt : Number(localStorage.getItem("fitmind.tokenExpiresAt") || 0),
+  userId: IS_DEMO_MODE ? DEMO_PROFILE.userId : localStorage.getItem("fitmind.userId") || "",
+  username: IS_DEMO_MODE ? DEMO_PROFILE.username : localStorage.getItem("fitmind.username") || "",
+  displayName: IS_DEMO_MODE ? DEMO_PROFILE.displayName : localStorage.getItem("fitmind.displayName") || "",
 };
 
 function App() {
   const [view, setView] = React.useState("dashboard");
   const [settings, setSettings] = React.useState(initialSettings);
-  const [activities, setActivities] = React.useState([]);
-  const [recommendations, setRecommendations] = React.useState([]);
+  const [activities, setActivities] = React.useState(() => IS_DEMO_MODE ? demoActivities() : []);
+  const [recommendations, setRecommendations] = React.useState(() => IS_DEMO_MODE ? demoRecommendations() : []);
   const [alert, setAlert] = React.useState(null);
   const [gatewayStatus, setGatewayStatus] = React.useState("unknown");
   const [form, setForm] = React.useState(defaultActivityForm());
@@ -56,6 +67,7 @@ function App() {
 
   const persistSettings = React.useCallback((nextSettings) => {
     setSettings(nextSettings);
+    if (IS_DEMO_MODE) return;
     localStorage.setItem("fitmind.accessToken", nextSettings.accessToken);
     localStorage.setItem("fitmind.refreshToken", nextSettings.refreshToken);
     localStorage.setItem("fitmind.tokenExpiresAt", String(nextSettings.tokenExpiresAt || 0));
@@ -113,6 +125,11 @@ function App() {
   }, [getValidSettings, refreshAccessToken]);
 
   const checkGateway = React.useCallback(async () => {
+    if (IS_DEMO_MODE) {
+      setGatewayStatus("online");
+      return;
+    }
+
     try {
       const activeSettings = await getValidSettings();
       await fetch(`${activeSettings.gatewayUrl}/api/activities`, {
@@ -125,6 +142,12 @@ function App() {
   }, [getValidSettings]);
 
   const loadActivities = React.useCallback(async () => {
+    if (IS_DEMO_MODE) {
+      setActivities((current) => current.length ? current : demoActivities());
+      notify("Demo activities loaded.");
+      return;
+    }
+
     if (!settings.accessToken) {
       notify("Please log in first.", "warn");
       setView("login");
@@ -136,6 +159,12 @@ function App() {
   }, [notify, request, settings.accessToken]);
 
   const loadRecommendations = React.useCallback(async () => {
+    if (IS_DEMO_MODE) {
+      setRecommendations((current) => current.length ? current : demoRecommendations());
+      notify("Demo recommendations loaded.");
+      return;
+    }
+
     if (!settings.userId) {
       notify("Please log in first.", "warn");
       setView("login");
@@ -148,6 +177,15 @@ function App() {
 
   const loadActivityRecommendation = async (activityId) => {
     if (!activityId) return;
+    if (IS_DEMO_MODE) {
+      const existing = recommendations.find((item) => item.activityId === activityId);
+      if (existing) {
+        setRecommendations((current) => [existing, ...current.filter((item) => item.id !== existing.id)]);
+      }
+      setView("recommendations");
+      return;
+    }
+
     try {
       const recommendation = await request(`/api/recommendations/activity/${encodeURIComponent(activityId)}`);
       setRecommendations((current) => [recommendation, ...current.filter((item) => item.id !== recommendation.id)]);
@@ -159,6 +197,17 @@ function App() {
 
   const saveActivity = async (event) => {
     event.preventDefault();
+    if (IS_DEMO_MODE) {
+      const saved = createDemoActivity(form);
+      const recommendation = createDemoRecommendation(saved);
+      setActivities((current) => [saved, ...current]);
+      setRecommendations((current) => [recommendation, ...current]);
+      setForm(defaultActivityForm());
+      notify("Demo activity saved with an AI-style recommendation.");
+      setView("dashboard");
+      return;
+    }
+
     if (!settings.accessToken) {
       notify("Please log in first.", "warn");
       setView("login");
@@ -191,6 +240,13 @@ function App() {
   };
 
   const loginWithKeycloak = async () => {
+    if (IS_DEMO_MODE) {
+      persistSettings({ ...settings, ...DEMO_PROFILE });
+      notify("Demo session is ready.");
+      setView("dashboard");
+      return;
+    }
+
     try {
       const verifier = createCodeVerifier();
       const challenge = await createCodeChallenge(verifier);
@@ -202,6 +258,15 @@ function App() {
   };
 
   const signOut = () => {
+    if (IS_DEMO_MODE) {
+      persistSettings({ ...settings, ...DEMO_PROFILE });
+      setActivities(demoActivities());
+      setRecommendations(demoRecommendations());
+      setView("dashboard");
+      notify("Demo data reset.");
+      return;
+    }
+
     const nextSettings = {
       ...settings,
       accessToken: "",
@@ -281,7 +346,7 @@ function App() {
         <section className="connection-panel">
           <div className="status-row">
             <span className={`status-dot ${gatewayStatus}`} />
-            <span>{gatewayStatus === "online" ? "Gateway reachable" : gatewayStatus === "offline" ? "Gateway offline" : "Not checked"}</span>
+            <span>{IS_DEMO_MODE ? "Live demo mode" : gatewayStatus === "online" ? "Gateway reachable" : gatewayStatus === "offline" ? "Gateway offline" : "Not checked"}</span>
           </div>
           <button className="secondary-btn" type="button" onClick={checkGateway}>Check Gateway</button>
         </section>
@@ -346,6 +411,7 @@ function App() {
             settings={settings}
             onLogin={loginWithKeycloak}
             onSignOut={signOut}
+            demoMode={IS_DEMO_MODE}
           />
         )}
       </main>
@@ -485,7 +551,7 @@ function RecommendationsView({ recommendations, onLoad }) {
   );
 }
 
-function LoginView({ settings, onLogin, onSignOut }) {
+function LoginView({ settings, onLogin, onSignOut, demoMode }) {
   return (
     <section className="view active">
       <div className="form-panel narrow">
@@ -498,13 +564,20 @@ function LoginView({ settings, onLogin, onSignOut }) {
             <button className="secondary-btn" type="button" onClick={onSignOut}>Sign Out</button>
           </div>
         )}
-        {!settings.accessToken && <p className="login-copy">Sign in with Keycloak to track workouts and load AI recommendations.</p>}
+        {!settings.accessToken && (
+          <p className="login-copy">
+            {demoMode ? "Try the public demo with sample workout data." : "Sign in with Keycloak to track workouts and load AI recommendations."}
+          </p>
+        )}
         <div className="form-actions">
           {!settings.accessToken && (
             <button className="primary-btn" type="button" onClick={onLogin}>
               <LogIn size={17} />
-              Login with Keycloak
+              {demoMode ? "Enter Demo" : "Login with Keycloak"}
             </button>
+          )}
+          {demoMode && settings.accessToken && (
+            <button className="secondary-btn" type="button" onClick={onSignOut}>Reset Demo</button>
           )}
         </div>
       </div>
@@ -682,6 +755,79 @@ function defaultActivityForm() {
     averageHeartRate: "",
     pace: "",
     mood: "Energized",
+  };
+}
+
+function demoActivities() {
+  return [
+    {
+      id: "demo-activity-3",
+      type: "CYCLING",
+      duration: 42,
+      caloriesBurned: 360,
+      startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      additionalMetrics: { distance: 14.2, averageHeartRate: 138, mood: "Strong" },
+    },
+    {
+      id: "demo-activity-2",
+      type: "YOGA",
+      duration: 25,
+      caloriesBurned: 115,
+      startTime: new Date(Date.now() - 28 * 60 * 60 * 1000).toISOString(),
+      additionalMetrics: { mood: "Steady" },
+    },
+    {
+      id: "demo-activity-1",
+      type: "RUNNING",
+      duration: 30,
+      caloriesBurned: 280,
+      startTime: new Date(Date.now() - 52 * 60 * 60 * 1000).toISOString(),
+      additionalMetrics: { distance: 4.8, averageHeartRate: 146, pace: "6:15 / km", mood: "Energized" },
+    },
+  ];
+}
+
+function demoRecommendations() {
+  return demoActivities().map(createDemoRecommendation);
+}
+
+function createDemoActivity(form) {
+  return {
+    id: `demo-activity-${Date.now()}`,
+    type: form.type,
+    duration: Number(form.duration),
+    caloriesBurned: Number(form.caloriesBurned),
+    startTime: form.startTime,
+    additionalMetrics: compact({
+      distance: optionalNumber(form.distance),
+      averageHeartRate: optionalNumber(form.averageHeartRate),
+      pace: form.pace,
+      mood: form.mood,
+    }),
+  };
+}
+
+function createDemoRecommendation(activity) {
+  const type = labelize(activity.type || "activity");
+  return {
+    id: `demo-rec-${activity.id}`,
+    activityId: activity.id,
+    userId: DEMO_PROFILE.userId,
+    activityType: activity.type,
+    recommendation: `${type} logged successfully. Keep the effort controlled, recover well, and increase volume gradually when the workout starts feeling easy.`,
+    improvements: [
+      "Keep a steady warm-up and cool-down routine",
+      "Track how effort feels so progress is not based only on calories",
+    ],
+    suggestions: [
+      `Repeat a similar ${type.toLowerCase()} session and compare duration, comfort, and recovery`,
+      "Add one lighter recovery session before increasing intensity",
+    ],
+    safety: [
+      "Hydrate before and after training",
+      "Stop if you feel sharp pain, dizziness, or unusual discomfort",
+    ],
+    createdAt: new Date().toISOString(),
   };
 }
 
