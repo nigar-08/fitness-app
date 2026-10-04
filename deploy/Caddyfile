@@ -1,0 +1,11 @@
+{$APP_DOMAIN} {
+    reverse_proxy frontend:80
+}
+
+auth.{$APP_DOMAIN} {
+    reverse_proxy keycloak:8080
+}
+
+rabbitmq.{$APP_DOMAIN} {
+    reverse_proxy rabbitmq:15672
+}

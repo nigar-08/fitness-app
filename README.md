@@ -115,8 +115,27 @@ Then open `http://localhost:5173`. If Vite says that port is busy and moves to `
 
 ## Full Docker Deployment
 
-For a real live deployment, use the production compose file on a server or VM
-that has Docker installed.
+For a real live deployment, use the production compose file on an Ubuntu server
+or VM that has Docker installed. The production setup uses Caddy for automatic
+HTTPS, so use a domain instead of only a raw IP address.
+
+Create these DNS `A` records and point all of them to your server IP:
+
+```text
+your-domain.com
+auth.your-domain.com
+rabbitmq.your-domain.com
+```
+
+On a fresh Ubuntu server, install Docker:
+
+```bash
+git clone https://github.com/nigar-08/fitness-app.git
+cd fitness-app
+./deploy/scripts/install-docker-ubuntu.sh
+```
+
+Log out and back in once after Docker installation, then continue.
 
 1. Copy the production env file:
 
@@ -127,9 +146,10 @@ cp .env.prod.example .env.prod
 2. Edit `.env.prod`:
 
 ```text
-PUBLIC_APP_URL=http://your-server-ip-or-domain
-PUBLIC_KEYCLOAK_URL=http://your-server-ip-or-domain:8181
-APP_CORS_ALLOWED_ORIGINS=http://your-server-ip-or-domain
+APP_DOMAIN=your-domain.com
+PUBLIC_APP_URL=https://your-domain.com
+PUBLIC_KEYCLOAK_URL=https://auth.your-domain.com
+APP_CORS_ALLOWED_ORIGINS=https://your-domain.com
 MYSQL_PASSWORD=your-strong-password
 KEYCLOAK_ADMIN_PASSWORD=your-strong-password
 GEMINI_API_KEY=your-gemini-api-key
@@ -141,16 +161,24 @@ GEMINI_API_KEY=your-gemini-api-key
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
+Or use the deploy helper:
+
+```bash
+./deploy/scripts/deploy.sh
+```
+
 4. Open the app:
 
 ```text
-http://your-server-ip-or-domain
+https://your-domain.com
 ```
 
 The production compose stack runs:
 
-- Frontend on port `80`
-- Keycloak on port `8181`
+- Caddy on ports `80` and `443`
+- Frontend at `https://your-domain.com`
+- Keycloak at `https://auth.your-domain.com`
+- RabbitMQ dashboard at `https://rabbitmq.your-domain.com`
 - Gateway behind the frontend nginx proxy at `/api`
 - Eureka, Config Server, User Service, Activity Service, and AI Service inside the Docker network
 - MySQL, MongoDB, RabbitMQ, and Keycloak persistent volumes
@@ -165,6 +193,12 @@ Demo user: testuser / password123
 
 Keycloak imports the realm only when its data volume is new. If you need to
 re-import from scratch, stop the stack and remove the `keycloak-data` volume.
+
+Check deployment status:
+
+```bash
+./deploy/scripts/status.sh
+```
 
 ## API Routes Through Gateway
 
